@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -201,6 +202,54 @@ func (bcl *BackendConfigLoader) GetAllBackendConfigs() []BackendConfig {
 	return res
 }
 
+type BackendConfigFilterFn func(string, *BackendConfig) bool
+
+func NoFilterFn(_ string, _ *BackendConfig) bool { return true }
+
+func BuildNameFilterFn(filter string) (BackendConfigFilterFn, error) {
+	if filter == "" {
+		return NoFilterFn, nil
+	}
+	rxp, err := regexp.Compile(filter)
+	if err != nil {
+		return nil, err
+	}
+	return func(name string, config *BackendConfig) bool {
+		if config != nil {
+			return rxp.MatchString(config.Name)
+		}
+		return rxp.MatchString(name)
+	}, nil
+}
+
+func BuildUsecaseFilterFn(usecases BackendConfigUsecases) BackendConfigFilterFn {
+	if usecases == FLAG_ANY {
+		return NoFilterFn
+	}
+	return func(name string, config *BackendConfig) bool {
+		if config == nil {
+			return false // TODO: Potentially make this a param, for now, no known usecase to include
+		}
+		return config.HasUsecases(usecases)
+	}
+}
+
+func (bcl *BackendConfigLoader) GetBackendConfigsByFilter(filter BackendConfigFilterFn) []BackendConfig {
+	bcl.Lock()
+	defer bcl.Unlock()
+	var res []BackendConfig
+
+	for n, v := range bcl.configs {
+		if filter(n, &v) {
+			res = append(res, v)
+		}
+	}
+
+	// TODO: I don't think this one needs to Sort on name... but we'll see what breaks.
+
+	return res
+}
+
 func (bcl *BackendConfigLoader) RemoveBackendConfig(m string) {
 	bcl.Lock()
 	defer bcl.Unlock()
@@ -295,6 +344,8 @@ func (bcl *BackendConfigLoader) Preload(modelPath string) error {
 			//glamText("**Usage**")
 			glamText(bcl.configs[i].Usage)
 		}
+
+		log.Debug().Str("name", bcl.configs[i].Name).Str("i", i).Msg("preloaded model successfully")
 	}
 	return nil
 }

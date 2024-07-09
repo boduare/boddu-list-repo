@@ -32,6 +32,8 @@ type ApplicationConfig struct {
 	CORSAllowOrigins                    string
 	ApiKeys                             []string
 	OpaqueErrors                        bool
+	UseSubtleKeyComparison              bool
+	RequireApiKeyForHttpGet             bool
 	P2PToken                            string
 
 	ModelLibraryURL string
@@ -304,6 +306,18 @@ func WithApiKeys(apiKeys []string) AppOption {
 func WithOpaqueErrors(opaque bool) AppOption {
 	return func(o *ApplicationConfig) {
 		o.OpaqueErrors = opaque
+	}
+}
+
+func WithSubtleKeyComparison(subtle bool) AppOption {
+	return func(o *ApplicationConfig) {
+		o.UseSubtleKeyComparison = subtle
+	}
+}
+
+func WithRequiredApiKeyForHTTPGet(required bool) AppOption {
+	return func(o *ApplicationConfig) {
+		o.RequireApiKeyForHttpGet = required
 	}
 }
 
