@@ -300,6 +300,11 @@ RUN if [ ! -d "/build/sources/go-piper/piper-phonemize/pi/lib/" ]; then \
         touch /build/sources/go-piper/piper-phonemize/pi/lib/keep \
     ; fi
 
+RUN if [ ! -d "/build/go-piper/piper/build/pi/lib/" ]; then \
+    mkdir -p /build/go-piper/piper/build/pi/lib/ \
+    touch /build/go-piper/piper/build/pi/lib/keep \
+    ; fi
+
 ###################################
 ###################################
 
