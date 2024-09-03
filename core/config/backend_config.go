@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/mudler/LocalAI/core/schema"
@@ -408,4 +409,87 @@ func (c *BackendConfig) Validate() bool {
 
 func (c *BackendConfig) HasTemplate() bool {
 	return c.TemplateConfig.Completion != "" || c.TemplateConfig.Edit != "" || c.TemplateConfig.Chat != "" || c.TemplateConfig.ChatMessage != ""
+}
+
+type BackendConfigUsecases int
+
+const (
+	FLAG_ANY              BackendConfigUsecases = 0b000000000
+	FLAG_CHAT             BackendConfigUsecases = 0b000000001
+	FLAG_COMPLETION       BackendConfigUsecases = 0b000000010
+	FLAG_EDIT             BackendConfigUsecases = 0b000000100
+	FLAG_EMBEDDINGS       BackendConfigUsecases = 0b000001000
+	FLAG_RERANK           BackendConfigUsecases = 0b000010000
+	FLAG_IMAGE            BackendConfigUsecases = 0b000100000
+	FLAG_TRANSCRIPT       BackendConfigUsecases = 0b001000000
+	FLAG_TTS              BackendConfigUsecases = 0b010000000
+	FLAG_SOUND_GENERATION BackendConfigUsecases = 0b100000000
+
+	// Common Subsets
+	FLAG_LLM BackendConfigUsecases = FLAG_CHAT & FLAG_COMPLETION & FLAG_EDIT
+)
+
+// HasUsecases examines a BackendConfig and determines which endpoints have a chance of success.
+// This is a **heuristic based** function, as the backend in question may not be loaded yet.
+// In the future, we may wish to consider storing this information in the config directly (which could get out of date)
+// or alternatively interrogating the backends (not always loaded) or loading the "implemented services" earlier with external backend registry?
+//
+// In its current state, this function should ideally check for properties of the config like templates, rather than the direct backend name checks for the lower half.
+// This avoids the maintenance burden of updating this list for each new backend - but unfortunately, that's the best option for some services currently.
+func (c *BackendConfig) HasUsecases(u BackendConfigUsecases) bool {
+	if (u & FLAG_CHAT) == FLAG_CHAT {
+		if c.TemplateConfig.Chat == "" && c.TemplateConfig.ChatMessage == "" {
+			return false
+		}
+	}
+	if (u & FLAG_COMPLETION) == FLAG_COMPLETION {
+		if c.TemplateConfig.Completion == "" {
+			return false
+		}
+	}
+	if (u & FLAG_EDIT) == FLAG_EDIT {
+		if c.TemplateConfig.Edit == "" {
+			return false
+		}
+	}
+	if (u & FLAG_EMBEDDINGS) == FLAG_EMBEDDINGS {
+		if c.Embeddings == nil || !*c.Embeddings {
+			return false
+		}
+	}
+	if (u & FLAG_IMAGE) == FLAG_IMAGE {
+		imageBackends := []string{"diffusers", "tinydream", "stablediffusion"}
+		if !slices.Contains(imageBackends, c.Backend) {
+			return false
+		}
+
+		if c.Backend == "diffusers" && c.Diffusers.PipelineType == "" {
+			return false
+		}
+
+	}
+	if (u & FLAG_RERANK) == FLAG_RERANK {
+		if c.Backend != "rerankers" {
+			return false
+		}
+	}
+	if (u & FLAG_TRANSCRIPT) == FLAG_TRANSCRIPT {
+		if c.Backend != "whisper" {
+			return false
+		}
+	}
+	if (u & FLAG_TTS) == FLAG_TTS {
+		ttsBackends := []string{"piper", "transformers-musicgen", "parler-tts"}
+		if !slices.Contains(ttsBackends, c.Backend) {
+			return false
+		}
+	}
+
+	if (u & FLAG_SOUND_GENERATION) == FLAG_SOUND_GENERATION {
+		if c.Backend != "transformers-musicgen" {
+			return false
+		}
+	}
+
+	return true
 }
